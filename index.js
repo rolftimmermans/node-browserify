@@ -8,9 +8,9 @@ var source = require('source');
 
 exports = module.exports = function (opts) {
     var modified = new Date();
-    var src = exports.bundle(opts);
-    
+
     return function (req, res, next) {
+        var src = exports.bundle(opts);
         if (req.url.split('?')[0] === (opts.mount || '/browserify.js')) {
             res.writeHead(200, {
                 'Last-Modified' : modified.toString(),
@@ -32,18 +32,18 @@ exports.bundle = function (opts) {
             });
         }
     }
-    
+
     var shim = 'shim' in opts ? opts.shim : true;
     var req = opts.require || [];
     if (!Array.isArray(req)) req = [req];
-    
+
     var src = fs.readFileSync(__dirname + '/wrappers/prelude.js', 'utf8')
         + fs.readFileSync(__dirname + '/wrappers/node_compat.js', 'utf8')
         + (shim ? source.modules('es5-shim')['es5-shim'] : '')
         + builtins
         + (req.length ? exports.wrap(req, opts_).source : '')
     ;
-    
+
     if (Array.isArray(opts.base)) {
         opts.base.forEach(function (base) {
             src += exports.wrapDir(base, Hash.merge(opts, { base : base }));
@@ -60,7 +60,7 @@ exports.bundle = function (opts) {
     else if (typeof opts.base === 'string') {
         src += exports.wrapDir(opts.base, opts);
     }
-    
+
     if (opts.entry) {
         if (!Array.isArray(opts.entry)) {
             opts.entry = [ opts.entry ];
@@ -68,7 +68,7 @@ exports.bundle = function (opts) {
         var entryBody = fs.readFileSync(
             __dirname + '/wrappers/entry.js', 'utf8'
         );
-        
+
         opts.entry.forEach(function (entry) {
             src += entryBody
                 .replace(/\$__filename/g, function () {
@@ -83,7 +83,7 @@ exports.bundle = function (opts) {
             ;
         });
     }
-    
+
     return opts.filter ? opts.filter(src) : src;
 };
 
@@ -97,7 +97,7 @@ var builtins = fs.readdirSync(__dirname + '/builtins')
     .map(function (file) {
         var f = __dirname + '/builtins/' + file;
         var src = fs.readFileSync(f, 'utf8').replace(/^#![^\n]*\n/, '');
-        
+
         return wrapperBody
             .replace(/\$filename/g, function () {
                 return JSON.stringify(file.replace(/\.js$/,''));
@@ -119,7 +119,7 @@ var builtins = fs.readdirSync(__dirname + '/builtins')
 exports.wrap = function (libname, opts) {
     if (!opts) opts = {};
     if (!opts.filename) opts.filename = libname;
-    
+
     if (opts.base && !opts.base.match(/^\//)) {
         // relative path
         if (opts.name) {
@@ -130,18 +130,18 @@ exports.wrap = function (libname, opts) {
             opts.base = process.cwd() + '/' + opts.base;
         }
     }
-    
+
     if (opts.main && !opts.main.match(/^\//)) {
         opts.main = opts.base + '/' + opts.main;
     }
-    
+
     if (Array.isArray(libname)) {
         var reqs = opts.required || [];
-        
+
         var src = libname.map(function (name) {
             var lib = exports.wrap(name, { required : reqs });
             reqs.push(name);
-            
+
             if (lib.dependencies.length) {
                 var deps = exports.wrap(lib.dependencies, { required : reqs });
                 reqs.push.apply(reqs, lib.dependencies);
@@ -151,7 +151,7 @@ exports.wrap = function (libname, opts) {
                 return lib.source;
             }
         }).join('\n');
-        
+
         return { source : src, dependencies : [] };
     }
     else if (opts.required && opts.required.indexOf(libname) >= 0) {
@@ -161,16 +161,16 @@ exports.wrap = function (libname, opts) {
         var src = fs.readFileSync(opts.filename, 'utf8');
         var body = opts.filename.match(/\.coffee$/)
             ? coffee.compile(src) : src;
-        
+
         var pkgname = ((opts.name ? opts.name + '/' : '') + libname)
             .replace(/\/\.\//g, '/')
             .replace(/\/\.$/, '')
         ;
-        
+
         if (opts.pkgname) pkgname = opts.pkgname;
         var dirname = opts.name || '.';
         var filename = dirname + '/' + path.basename(opts.filename);
-        
+
         return {
             source : wrapperBody
                 .replace(/\$__dirname/g, function () {
@@ -192,14 +192,14 @@ exports.wrap = function (libname, opts) {
     else if (libname.match(/\//)) {
         var resolved = require.resolve(libname);
         var body = fs.readFileSync(resolved, 'utf8');
-        
+
         var pkgname = ((opts.name ? opts.name + '/' : '') + libname)
             .replace(/\/\.\//g, '/')
             .replace(/\/\.$/, '')
         ;
-        
+
         if (opts.pkgname) pkgname = opts.pkgname;
-        
+
         var src = wrapperBody
             .replace(/\$__dirname/g, function () {
                 return JSON.stringify(pkgname);
@@ -221,7 +221,7 @@ exports.wrap = function (libname, opts) {
     else {
         var mods = source.modules(libname);
         var pkg = mods[libname + '/package.json'];
-        
+
         if (pkg.browserify && pkg.browserify.main) {
             var main = (libname + '/' + pkg.browserify.main)
                 .replace(/\/\.\//g, '/');
@@ -229,14 +229,14 @@ exports.wrap = function (libname, opts) {
             p.filename = require.resolve(main);
             p.name = p.name || libname;
             p.pkgname = p.pkgname || libname;
-            
+
             if (p.base && !p.base.match(/^\//)) {
                 p.base = (
                     path.dirname(require.resolve(libname + '/package.json'))
                     + '/' + p.base
                 ).replace(/\/\.\//g, '/');
             }
-            
+
             return {
                 'package.json' : pkg,
                 dependencies : pkg.browserify.require || [],
@@ -246,7 +246,7 @@ exports.wrap = function (libname, opts) {
                 ,
             };
         }
-        
+
         return {
             'package.json' : pkg,
             dependencies :
@@ -285,7 +285,7 @@ exports.wrap = function (libname, opts) {
 var find = require('findit');
 exports.wrapDir = function (base, opts) {
     if (!opts) opts = {};
-    
+
     var pkg = path.existsSync(base + '/package.json')
         ? JSON.parse(fs.readFileSync(base + '/package.json', 'utf8'))
         : {}
@@ -295,9 +295,9 @@ exports.wrapDir = function (base, opts) {
             || (pkg.browserify && pkg.browserify[key])
             || pkg[key]
     }
-    
+
     var main = params('main');
-    
+
     if (main && typeof pkg.browserify === 'object'
     && !pkg.browserify.base) {
         var files = [ base + '/' + main ];
@@ -305,10 +305,10 @@ exports.wrapDir = function (base, opts) {
     else {
         var files = find.sync(base);
     }
-    
+
     var depSrc = pkg.browserify && pkg.browserify.require
         ? exports.wrap(pkg.browserify.require).source : '';
-    
+
     return depSrc + files
         .filter(function (file) {
             return file.match(/\.(?:js|coffee)$/)
@@ -317,11 +317,11 @@ exports.wrapDir = function (base, opts) {
         .map(function (file) {
             var libname = unext(file.slice(base.length + 1));
             if (!libname.match(/^\.\//)) libname = './' + libname;
-            
+
             var pkgname = main && (
                 unext(main) === file || unext(main) === libname
             ) ? '.' : libname;
-            
+
             return exports.wrap(pkgname, {
                 filename : file,
                 name : params('name'),
